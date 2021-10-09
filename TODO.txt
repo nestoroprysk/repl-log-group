@@ -1,0 +1,24 @@
+I've created a sceleton for the app. If we follow some conventions, it will be easy to coordinate. For that reason, proposing to follow the convention from the `README.md`. Please, take a look, read the code, and try `docker-compose` before jumping to the implementation.
+
+Here are some details on the proposed convention.
+
+Master (Alexander):
+- Please, implement everything (including a Dockerfile) inside `./master`
+- Drop all the current content from that directory (it's an example)
+- Listen on 0.0.0.0:8080
+- Expect secondaries on 0.0.0.0:8081 and 0.0.0.0:8082
+- GET /messages
+- POST /messages where body is a JSON like `{"message":"abc"}` (for future delays)
+- GET /ping
+
+Secondary (Serhii):
+- Please, implement everything (including a Dockerfile) inside `./secondary`
+- Drop all the current content from that directory (it's an example)
+- Listen on 0.0.0.0:${PORT} where ${PORT} is the value of the environmental variable
+- GET /messages
+- POST /messages where body is a JSON like `{"message":"abc"}` (for future delays)
+- GET /ping
+
+Once we're done with something very basic like this, we may improve everything. I propose to iterate with small steps.
+
+Alexander will be blocked on Serhii. So it would be amazing if Serhii created a pull request very soon.

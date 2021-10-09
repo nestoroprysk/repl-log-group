@@ -1,0 +1,21 @@
+---
+version: "3.9"
+services:
+  master:
+    build: ./master
+    ports: ["0.0.0.0:8080:8080"]
+    depends_on:
+      - secondary-1
+      - secondary-2
+    environment:
+      CONFIG_PATH: master.json
+  secondary-1:
+    build: ./secondary
+    ports: ["0.0.0.0:8081:8081"]
+    environment:
+      PORT: "8081"
+  secondary-2:
+    build: ./secondary
+    ports: ["0.0.0.0:8082:8082"]
+    environment:
+      PORT: "8082"
