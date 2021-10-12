@@ -18,4 +18,4 @@ def get_msgs():
 
 @app.route("/ping", methods=["GET"])
 def ping():
-    return "OK"
+    return "pong"
