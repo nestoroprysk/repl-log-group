@@ -1,11 +1,14 @@
-FROM golang:1.17.1
+FROM python:3.7-alpine
 
-WORKDIR /app
+ENV FLASK_APP server.py
+
+EXPOSE 8080
+
+WORKDIR /usr/src/app
+
+COPY requirements.txt ./
+RUN pip3 install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-RUN go mod download
-
-RUN go build
-
-CMD [ "/app/master" ]
+CMD [ "python3", "-m" , "flask", "run", "--host=0.0.0.0", "--port=8008" ]
