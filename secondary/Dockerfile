@@ -9,4 +9,4 @@ RUN pip3 install -r requirements.txt
 
 COPY . .
 
-CMD [ "python3", "-m" , "flask", "run", "--host=0.0.0.0", "--port=8081"]
+CMD ["sh", "-c", "python3 -m flask run --host=0.0.0.0 --port=${PORT}"]
