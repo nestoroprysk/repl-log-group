@@ -19,7 +19,7 @@ Replication log is a distributed systems course homework [assignment](https://do
     curl localhost:8082/ping
 
     # post a message (master only)
-    curl -X POST -d '{"message":"abc"}' localhost:8080/messages
+    curl -H "Content-Type: application/json" -X POST -d '{"message":"abc"}' localhost:8080/messages
 
     # list messages of master
     curl localhost:8080/messages

@@ -10,7 +10,7 @@ data = []
 @app.route("/messages", methods=["GET", "POST"])
 def get_msgs():
     if request.method == "POST":
-        msg = json.loads(request.data)
+        msg = request.json.get('message')
         data.append(msg)
         return jsonify(msg)
     return jsonify(data)
