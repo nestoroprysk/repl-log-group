@@ -11,11 +11,12 @@ data = []
 def get_msgs():
     if request.method == "POST":
         msg = request.json.get("message")
-        data.append(msg)
-
         delay = request.json.get("delay")
+
         if delay:
             sleep(float(delay))
+
+        data.append(msg)
 
         return jsonify(msg)
     return jsonify(data)
