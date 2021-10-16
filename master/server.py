@@ -43,7 +43,7 @@ def list_messages():
     return jsonify(list(messages))
 
 
-def replicate_message(data: dict, index: int, port: str, ) -> Optional[str]:
+def replicate_message(data: dict, index: int, port: str) -> Optional[str]:
     url = f'http://secondary-{index + 1}:{port}/messages'
     r = requests.post(
         url,
