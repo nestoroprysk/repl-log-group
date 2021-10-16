@@ -26,8 +26,8 @@ def add_message():
 
     threads = list()
     data = request.get_json()
-    for index, port in enumerate(client_ports):
 
+    for index, port in enumerate(client_ports):
         thread = Thread(target=replicate_message, args=(data, index, port))
         thread.start()
         threads.append(thread)
