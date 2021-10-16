@@ -25,7 +25,7 @@ def add_message():
         url = f'http://secondary-{index + 1}:{port}/messages'
         r = requests.post(
             url,
-            json={'message': message},
+            json=request.get_json(),
         )
 
         if r.status_code is not 200:
