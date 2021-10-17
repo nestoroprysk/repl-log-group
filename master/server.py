@@ -1,10 +1,10 @@
 import os
-from threading import Thread, Lock
 from collections import deque
-from typing import Optional
+from concurrent.futures import ThreadPoolExecutor
+from threading import Lock
 
 import requests
-from flask import Flask, request, jsonify
+from flask import Flask, jsonify, request
 
 app = Flask(__name__)
 messages = deque()
@@ -24,16 +24,18 @@ def add_message():
         message = request.json.get('message')
         messages.append(message)
 
-    threads = list()
+    futures = list()
     data = request.get_json()
 
-    for index, port in enumerate(client_ports):
-        thread = Thread(target=replicate_message, args=(data, index, port))
-        thread.start()
-        threads.append(thread)
+    with ThreadPoolExecutor() as executor:
+        for index, port in enumerate(client_ports):
+            future = executor.submit(replicate_message, data, index, port)
+            futures.append(future)
 
-    for thread in threads:
-        thread.join()
+    responses = [f.result() for f in futures]
+    for r in responses:
+        if r.status_code is not 200:
+            return f'{r.status_code}: {r.reason}'
 
     return jsonify(message)
 
@@ -43,12 +45,11 @@ def list_messages():
     return jsonify(list(messages))
 
 
-def replicate_message(data: dict, index: int, port: str) -> Optional[str]:
+def replicate_message(data: dict, index: int, port: str) -> requests.Response:
     url = f'http://secondary-{index + 1}:{port}/messages'
-    r = requests.post(
+    response = requests.post(
         url,
         json=data,
     )
 
-    if r.status_code is not 200:
-        return f'{r.status_code}: {r.reason}'
+    return response
