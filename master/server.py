@@ -11,7 +11,7 @@ client_ports = [os.getenv('SECONDARY_1_PORT'), os.getenv('SECONDARY_2_PORT')]
 
 @app.route('/ping', methods=['GET'])
 def ping():
-    return 'ping'
+    return 'pong'
 
 
 @app.route('/messages', methods=['POST'])
