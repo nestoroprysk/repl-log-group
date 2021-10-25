@@ -22,7 +22,11 @@ def ping():
 def add_message():
     with lock:
         message = request.json.get('message')
+        write_concern = request.json.get('w')
+        if write_concern and not isinstance(write_concern, int):
+            write_concern = int(write_concern)
         messages.append(message)
+        write_concern -= 1
 
     futures = list()
     data = request.get_json()
@@ -36,8 +40,11 @@ def add_message():
     for r in responses:
         if r.status_code is not 200:
             return f'{r.status_code}: {r.reason}'
-
-    return jsonify(message)
+        else:
+            write_concern -= 1
+    if write_concern <= 0:
+        return jsonify(message)
+    return None
 
 
 @app.route('/messages', methods=['GET'])
