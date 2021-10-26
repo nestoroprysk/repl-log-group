@@ -9,23 +9,24 @@ from flask import Flask, jsonify, request
 app = Flask(__name__)
 messages = deque()
 
-client_ports = [os.getenv('SECONDARY_1_PORT'), os.getenv('SECONDARY_2_PORT')]
+client_ports = [os.getenv("SECONDARY_1_PORT"), os.getenv("SECONDARY_2_PORT")]
 lock = Lock()
 
 
-@app.route('/ping', methods=['GET'])
+class NoWparameterError(Exception):
+    """No write concern parameter"""
+
+
+@app.route("/ping", methods=["GET"])
 def ping():
-    return 'pong'
+    return "pong"
 
 
-@app.route('/messages', methods=['POST'])
+@app.route("/messages", methods=["POST"])
 def add_message():
     with lock:
-        message = request.json.get('message')
-        write_concern = request.json.get('w')
-        if write_concern and not isinstance(write_concern, int):
-            write_concern = int(write_concern)
-        messages.append(message)
+        message = request.json.get("message")
+        write_concern = request.json.get("w")
         write_concern -= 1
 
     futures = list()
@@ -36,24 +37,26 @@ def add_message():
             future = executor.submit(replicate_message, data, index, port)
             futures.append(future)
 
-    responses = [f.result() for f in futures]
-    for r in responses:
-        if r.status_code is not 200:
-            return f'{r.status_code}: {r.reason}'
-        else:
+    for f in futures:
+        r = f.result()
+        if r.status_code == 200:
             write_concern -= 1
+        else:
+            return f"{r.status_code}: {r.reason}"
+
     if write_concern <= 0:
+        messages.append(message)
         return jsonify(message)
-    return None
+    raise NoWparameterError
 
 
-@app.route('/messages', methods=['GET'])
+@app.route("/messages", methods=["GET"])
 def list_messages():
     return jsonify(list(messages))
 
 
 def replicate_message(data: dict, index: int, port: str) -> requests.Response:
-    url = f'http://secondary-{index + 1}:{port}/messages'
+    url = f"http://secondary-{index + 1}:{port}/messages"
     response = requests.post(
         url,
         json=data,
