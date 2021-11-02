@@ -13,10 +13,6 @@ client_ports = [os.getenv("SECONDARY_1_PORT"), os.getenv("SECONDARY_2_PORT")]
 lock = Lock()
 
 
-class NoWparameterError(Exception):
-    """No write concern parameter"""
-
-
 @app.route("/ping", methods=["GET"])
 def ping():
     return "pong"
@@ -24,10 +20,10 @@ def ping():
 
 @app.route("/messages", methods=["POST"])
 def add_message():
-    with lock:
-        message = request.json.get("message")
-        write_concern = request.json.get("w")
-        write_concern -= 1
+    desired_replication_count = 3
+    message = request.json.get("message")
+    successful_replication_count = request.json.get("w")
+    desired_replication_count -= 1
 
     futures = list()
     data = request.get_json()
@@ -40,14 +36,16 @@ def add_message():
     for f in futures:
         r = f.result()
         if r.status_code == 200:
-            write_concern -= 1
+            desired_replication_count -= 1
         else:
             return f"{r.status_code}: {r.reason}"
-
-    if write_concern <= 0:
-        messages.append(message)
-        return jsonify(message)
-    raise NoWparameterError
+    with lock:
+        if successful_replication_count >= desired_replication_count:
+            messages.append(message)
+            return jsonify(message)
+    raise Exception(
+        f"write concern violated: successfully replicated to {3-desired_replication_count} node, failed to replicate to {desired_replication_count} node"
+    )
 
 
 @app.route("/messages", methods=["GET"])
