@@ -2,6 +2,7 @@ from threading import Lock
 from time import sleep
 
 from flask import Flask, jsonify, request
+import sys
 
 app = Flask(__name__)
 
@@ -9,19 +10,27 @@ data = []
 lock = Lock()
 
 
-@app.route("/messages", methods=["GET", "POST"])
-def get_msgs():
-    if request.method == "POST":
-        lock.acquire()
-        msg = request.json.get("message")
-        delay = request.json.get("delay")
+@app.route("/messages", methods=["POST"])
+def post():
+    print(request.json, file=sys.stderr)
 
-        if delay:
-            sleep(float(delay))
+    delay = request.json.get("delay")
+    if delay:
+        sleep(float(delay))
 
+    noreply = request.json.get("noreply")
+    if noreply == True:
+        return
+
+    msg = request.json.get("message")
+    with lock:
         data.append(msg)
-        lock.release()
-        return jsonify(msg)
+
+    return jsonify(msg)
+
+
+@app.route('/messages', methods=['GET'])
+def get():
     return jsonify(data)
 
 

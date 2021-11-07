@@ -22,7 +22,12 @@ Replication log is a distributed systems course homework [assignment](https://do
     curl -H "Content-Type: application/json" -X POST -d '{"message":"abc"}' localhost:8080/messages
 
     # post a message with delay (all secondaries sleep for 5 seconds before responding)
-    curl -H "Content-Type: application/json" -X POST -d '{"message":"123","delay":5}' localhost:8080/messages
+    export message='{"message": "123", "secondary-1":{"delay":5}, "secondary-2":{"delay":5}}'
+    curl -H "Content-Type: application/json" -X POST -d ${message} localhost:8080/messages
+
+    # post a message and force secondary-2 not to reply and ignore the message
+    export message='{"message": "yai", "secondary-2":{"noreply":true}}'
+    curl -H "Content-Type: application/json" -X POST -d ${message} localhost:8080/messages
 
     # list messages of master
     curl localhost:8080/messages

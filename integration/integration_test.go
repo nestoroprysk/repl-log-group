@@ -33,16 +33,32 @@ var _ = It("A delay is respected", func() {
 	m, ss := env()
 
 	var second uint32 = 1
-	msg := makeMessage()
-	msg.Delay = second
-	takesAtLeast(func() {
-		Expect(m.PostMessage(msg)).To(Succeed())
-	}, time.Second)
 
-	for _, c := range append(ss, m) {
-		msgs, err := c.GetMessages()
-		Expect(err).NotTo(HaveOccurred())
-		Expect(msgs).To(ContainElement(msg.Message))
+	var msgs []integration.Message
+
+	msg := makeMessage()
+	msg.Secondary1.Delay = second
+	msg.Secondary2.Delay = second
+	msgs = append(msgs, msg)
+
+	msg = makeMessage()
+	msg.Secondary1.Delay = second
+	msgs = append(msgs, msg)
+
+	msg = makeMessage()
+	msg.Secondary2.Delay = second
+	msgs = append(msgs, msg)
+
+	for _, msg := range msgs {
+		takesAtLeast(func() {
+			Expect(m.PostMessage(msg)).To(Succeed())
+		}, time.Second)
+
+		for _, c := range append(ss, m) {
+			msgs, err := c.GetMessages()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(msgs).To(ContainElement(msg.Message))
+		}
 	}
 })
 
@@ -109,6 +125,44 @@ var _ = It("Simultaneous posts and gets don't crash the app", func() {
 	}
 
 	wg.Wait()
+})
+
+var _ = It("Noreply is respected", func() {
+	m, ss := env()
+
+	msg := makeMessage()
+	msg.Secondary1.NoReply = true
+	msg.Secondary2.NoReply = true
+	Expect(m.PostMessage(msg)).NotTo(Succeed())
+	for _, c := range append(ss, m) {
+		result, err := c.GetMessages()
+		Expect(err).NotTo(HaveOccurred())
+		Expect(result).NotTo(ContainElement(msg.Message))
+	}
+
+	msg = makeMessage()
+	msg.Secondary1.NoReply = true
+	Expect(m.PostMessage(msg)).NotTo(Succeed())
+	for i, c := range append(ss, m) {
+		result, err := c.GetMessages()
+		Expect(err).NotTo(HaveOccurred())
+		secondary2 := i == 1
+		if !secondary2 {
+			Expect(result).NotTo(ContainElement(msg.Message))
+		}
+	}
+
+	msg = makeMessage()
+	msg.Secondary2.NoReply = true
+	Expect(m.PostMessage(msg)).NotTo(Succeed())
+	for i, c := range append(ss, m) {
+		result, err := c.GetMessages()
+		Expect(err).NotTo(HaveOccurred())
+		secondary1 := i == 0
+		if !secondary1 {
+			Expect(result).NotTo(ContainElement(msg.Message))
+		}
+	}
 })
 
 func env() (*integration.Client, []*integration.Client) {

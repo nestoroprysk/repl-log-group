@@ -4,6 +4,6 @@ ENV FLASK_APP server.py
 
 COPY . .
 
-RUN pip3 install --no-cache-dir -r requirements.txt
+RUN pip3 install -r requirements.txt
 
 CMD ["sh", "-c", "python3 -m flask run --host=0.0.0.0 --port=${PORT}"]
