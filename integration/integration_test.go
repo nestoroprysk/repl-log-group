@@ -37,8 +37,8 @@ var _ = It("A delay is respected", func() {
 	var msgs []integration.Message
 
 	msg := makeMessage()
-	msg.Secondary1.Delay = second
-	msg.Secondary2.Delay = second
+	msg.Secondary1.Delay = 2 * second
+	msg.Secondary2.Delay = 2 * second
 	msgs = append(msgs, msg)
 
 	msg = makeMessage()
@@ -53,6 +53,10 @@ var _ = It("A delay is respected", func() {
 		takesAtLeast(func() {
 			Expect(m.PostMessage(msg)).To(Succeed())
 		}, time.Second)
+
+		takesAtMost(func() {
+			Expect(m.PostMessage(msg)).To(Succeed())
+		}, 3*time.Second) // Master works in parallel (so two delays of 2 seconds don't count to 4).
 
 		for _, c := range append(ss, m) {
 			msgs, err := c.GetMessages()
@@ -322,11 +326,36 @@ var _ = It("If w=2 and secondary-2 returned the result, not waiting for secondar
 
 	msg := makeMessage()
 	msg.WriteConcern = 2
-	msg.Secondary1.Delay = 2 // Two seconds.
+	msg.Secondary1.Delay = 3 // In seconds.
 
 	takesAtMost(func() {
 		Expect(m.PostMessage(msg)).To(Succeed())
-	}, time.Second)
+	}, 2*time.Second)
+})
+
+var _ = It("If w=2 and secondary-1 returned the result, not waiting for secondary-2", func() {
+	m, _ := env()
+
+	msg := makeMessage()
+	msg.WriteConcern = 2
+	msg.Secondary2.Delay = 3 // In seconds.
+
+	takesAtMost(func() {
+		Expect(m.PostMessage(msg)).To(Succeed())
+	}, 2*time.Second)
+})
+
+var _ = It("If w=1, not waiting at all", func() {
+	m, _ := env()
+
+	msg := makeMessage()
+	msg.WriteConcern = 1
+	msg.Secondary1.Delay = 3 // In seconds.
+	msg.Secondary2.Delay = 3 // In seconds.
+
+	takesAtMost(func() {
+		Expect(m.PostMessage(msg)).To(Succeed())
+	}, 1*time.Second)
 })
 
 func env() (*integration.Client, []*integration.Client) {

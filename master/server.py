@@ -41,40 +41,42 @@ def add_message():
     success = []
     fail = []
 
-    with ThreadPoolExecutor() as executor:
-        for index, port in enumerate(client_ports):
-            d = request.get_json()
-            delay = 0
-            noreply = False
+    executor = ThreadPoolExecutor()
+    for index, port in enumerate(client_ports):
+        d = request.get_json()
+        delay = 0
+        noreply = False
 
-            conf = request.json.get(f'secondary-{index + 1}')
-            if conf:
-                if conf.get('delay'):
-                    delay = conf.get('delay')
+        conf = request.json.get(f'secondary-{index + 1}')
+        if conf:
+            if conf.get('delay'):
+                delay = conf.get('delay')
 
-                if conf.get('noreply'):
-                    noreply = conf.get('noreply')
+            if conf.get('noreply'):
+                noreply = conf.get('noreply')
 
-            d = {
-                'message': d.get('message'),
-                'delay': delay,
-                'noreply': noreply
-            }
+        d = {
+            'message': d.get('message'),
+            'delay': delay,
+            'noreply': noreply
+        }
 
-            def replicate_message(data: dict, index: int, port: str):
-                url = f'http://secondary-{index + 1}:{port}/messages'
-                response = requests.post(
-                    url,
-                    json=data,
-                )
+        def replicate_message(data: dict, index: int, port: str):
+            url = f'http://secondary-{index + 1}:{port}/messages'
+            response = requests.post(
+                url,
+                json=data,
+            )
 
-                with result_lock:
-                    if response.status_code == 200:
-                        success.append(f'node secondary-{index + 1} replicated just fine')
-                    else:
-                        fail.append(f'node secondary-{index + 1} returned the response code {response.status_code}: {response.reason}')
+            with result_lock:
+                if response.status_code == 200:
+                    success.append(f'node secondary-{index + 1} replicated just fine')
+                else:
+                    fail.append(f'node secondary-{index + 1} returned the response code {response.status_code}: {response.reason}')
 
-            future = executor.submit(replicate_message, d, index, port)
+        executor.submit(replicate_message, d, index, port)
+
+    executor.shutdown(wait=False)
 
     timeout = time.time() + 60/2   # half a minute from now.
     while True:
@@ -87,15 +89,15 @@ def add_message():
 
         with result_lock:
             if expected_success_count == 1 and len(success) > 0:
-                break # Satisfied w=1.
-            if expected_success_count == 2 and len(success) == 2:
                 break # Satisfied w=2.
+            if expected_success_count == 2 and len(success) == 2:
+                break # Satisfied w=3.
             if len(fail) == 2:
                 return f"write concern is {expected_success_count + 1} (not 1) and failed to replicate to both of the nodes: {fail}", 500
             if expected_success_count == 2 and len(fail) != 0:
                 return f"write concern is {expected_success_count + 1} and failed to replicate to one of the nodes: {fail}", 500
 
-        time.sleep(0.5)
+        time.sleep(0.2)
 
     with lock:
         message = request.json.get('message')

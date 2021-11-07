@@ -36,6 +36,10 @@ Replication log is a distributed systems course homework [assignment](https://do
     # post a message with write concern 2 and expect success when a single replica errors
     export message='{"message": "yai", "w": 2, "secondary-1":{"noreply":true}}'
     curl -H "Content-Type: application/json" -X POST -d ${message} localhost:8080/messages
+    
+    # post a message with write concern 1 doesn't wait for slow nodes
+    export message='{"message": "yai", "w": 1, "secondary-1":{"delay":3}}'
+    curl -H "Content-Type: application/json" -X POST -d ${message} localhost:8080/messages
 
     # list messages of master
     curl localhost:8080/messages
