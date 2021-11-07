@@ -4,8 +4,9 @@ from concurrent.futures import ThreadPoolExecutor
 from threading import Lock
 
 import requests
-from flask import Flask, jsonify, request
+import time
 import sys
+from flask import Flask, jsonify, request
 
 app = Flask(__name__)
 
@@ -24,12 +25,25 @@ def ping():
 def add_message():
     print(request.json, file=sys.stderr)
 
-    futures = list()
-    data = request.get_json()
+    # Waiting for both replicas by default (equivalent to w=3).
+    expected_success_count = 2
+
+    concern = request.json.get('w')
+    if concern:
+        if concern == 3:
+            expected_success_count = 2
+        if concern == 2:
+            expected_success_count = 1
+        if concern == 1:
+            expected_success_count = 0
+
+    result_lock = Lock()
+    success = []
+    fail = []
 
     with ThreadPoolExecutor() as executor:
         for index, port in enumerate(client_ports):
-            d = data
+            d = request.get_json()
             delay = 0
             noreply = False
 
@@ -47,13 +61,41 @@ def add_message():
                 'noreply': noreply
             }
 
-            future = executor.submit(replicate_message, d, index, port)
-            futures.append(future)
+            def replicate_message(data: dict, index: int, port: str):
+                url = f'http://secondary-{index + 1}:{port}/messages'
+                response = requests.post(
+                    url,
+                    json=data,
+                )
 
-    responses = [f.result() for f in futures]
-    for r in responses:
-        if r.status_code is not 200:
-            return f'{r.status_code}: {r.reason}'
+                with result_lock:
+                    if response.status_code == 200:
+                        success.append(f'node secondary-{index + 1} replicated just fine')
+                    else:
+                        fail.append(f'node secondary-{index + 1} returned the response code {response.status_code}: {response.reason}')
+
+            future = executor.submit(replicate_message, d, index, port)
+
+    timeout = time.time() + 60/2   # half a minute from now.
+    while True:
+        if expected_success_count == 0:
+            break # Even if no nodes succeed, whatever.
+
+        if time.time() > timeout:
+            with result_lock:
+                return f"timeout exceeded with success {success} and fail {fail}", 500
+
+        with result_lock:
+            if expected_success_count == 1 and len(success) > 0:
+                break # Satisfied w=1.
+            if expected_success_count == 2 and len(success) == 2:
+                break # Satisfied w=2.
+            if len(fail) == 2:
+                return f"write concern is {expected_success_count + 1} (not 1) and failed to replicate to both of the nodes: {fail}", 500
+            if expected_success_count == 2 and len(fail) != 0:
+                return f"write concern is {expected_success_count + 1} and failed to replicate to one of the nodes: {fail}", 500
+
+        time.sleep(0.5)
 
     with lock:
         message = request.json.get('message')
@@ -65,13 +107,3 @@ def add_message():
 @app.route('/messages', methods=['GET'])
 def list_messages():
     return jsonify(list(messages))
-
-
-def replicate_message(data: dict, index: int, port: str) -> requests.Response:
-    url = f'http://secondary-{index + 1}:{port}/messages'
-    response = requests.post(
-        url,
-        json=data,
-    )
-
-    return response
