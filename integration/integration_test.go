@@ -33,16 +33,36 @@ var _ = It("A delay is respected", func() {
 	m, ss := env()
 
 	var second uint32 = 1
-	msg := makeMessage()
-	msg.Delay = second
-	takesAtLeast(func() {
-		Expect(m.PostMessage(msg)).To(Succeed())
-	}, time.Second)
 
-	for _, c := range append(ss, m) {
-		msgs, err := c.GetMessages()
-		Expect(err).NotTo(HaveOccurred())
-		Expect(msgs).To(ContainElement(msg.Message))
+	var msgs []integration.Message
+
+	msg := makeMessage()
+	msg.Secondary1.Delay = 2 * second
+	msg.Secondary2.Delay = 2 * second
+	msgs = append(msgs, msg)
+
+	msg = makeMessage()
+	msg.Secondary1.Delay = second
+	msgs = append(msgs, msg)
+
+	msg = makeMessage()
+	msg.Secondary2.Delay = second
+	msgs = append(msgs, msg)
+
+	for _, msg := range msgs {
+		takesAtLeast(func() {
+			Expect(m.PostMessage(msg)).To(Succeed())
+		}, time.Second)
+
+		takesAtMost(func() {
+			Expect(m.PostMessage(msg)).To(Succeed())
+		}, 3*time.Second) // Master works in parallel (so two delays of 2 seconds don't count to 4).
+
+		for _, c := range append(ss, m) {
+			msgs, err := c.GetMessages()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(msgs).To(ContainElement(msg.Message))
+		}
 	}
 })
 
@@ -50,8 +70,11 @@ var _ = It("Many messages get replicated", func() {
 	m, ss := env()
 
 	var msgs []integration.Message
+	var expected []string
 	for i := 0; i < 100; i++ {
-		msgs = append(msgs, makeMessage())
+		m := makeMessage()
+		msgs = append(msgs, m)
+		expected = append(expected, m.Message)
 	}
 
 	var wg sync.WaitGroup
@@ -66,13 +89,7 @@ var _ = It("Many messages get replicated", func() {
 	}
 	wg.Wait()
 
-	expected, err := m.GetMessages()
-	Expect(err).NotTo(HaveOccurred())
-	for _, m := range msgs {
-		Expect(expected).To(ContainElement(m.Message))
-	}
-
-	for _, c := range ss {
+	for _, c := range append(ss, m) {
 		result, err := c.GetMessages()
 		Expect(err).NotTo(HaveOccurred())
 		Expect(result).To(ContainElements(expected))
@@ -111,6 +128,233 @@ var _ = It("Simultaneous posts and gets don't crash the app", func() {
 	wg.Wait()
 })
 
+var _ = It("Noreply is respected", func() {
+	m, ss := env()
+
+	msg := makeMessage()
+	msg.Secondary1.NoReply = true
+	msg.Secondary2.NoReply = true
+	Expect(m.PostMessage(msg)).NotTo(Succeed())
+
+	for _, c := range append(ss, m) {
+		result, err := c.GetMessages()
+		Expect(err).NotTo(HaveOccurred())
+		Expect(result).NotTo(ContainElement(msg.Message))
+	}
+
+	msg = makeMessage()
+	msg.Secondary1.NoReply = true
+	Expect(m.PostMessage(msg)).NotTo(Succeed())
+
+	for i, c := range append(ss, m) {
+		result, err := c.GetMessages()
+		Expect(err).NotTo(HaveOccurred())
+		secondary2 := i == 1
+		if !secondary2 {
+			Expect(result).NotTo(ContainElement(msg.Message))
+		}
+	}
+
+	msg = makeMessage()
+	msg.Secondary2.NoReply = true
+	Expect(m.PostMessage(msg)).NotTo(Succeed())
+
+	for i, c := range append(ss, m) {
+		result, err := c.GetMessages()
+		Expect(err).NotTo(HaveOccurred())
+		secondary1 := i == 0
+		if !secondary1 {
+			Expect(result).NotTo(ContainElement(msg.Message))
+		}
+	}
+})
+
+var _ = It("Even if both nodes fail and w=1, no error", func() {
+	m, ss := env()
+
+	msg := makeMessage()
+	msg.WriteConcern = 1
+	msg.Secondary1.NoReply = true
+	msg.Secondary2.NoReply = true
+	Expect(m.PostMessage(msg)).To(Succeed())
+
+	for i, c := range append(ss, m) {
+		result, err := c.GetMessages()
+		Expect(err).NotTo(HaveOccurred())
+
+		master := i == 2
+		if master {
+			Expect(result).To(ContainElement(msg.Message))
+		} else {
+			result, err := c.GetMessages()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result).NotTo(ContainElement(msg.Message))
+		}
+	}
+})
+
+var _ = It("The default write concern (w=3) errors if both nodes fail", func() {
+	m, ss := env()
+
+	msg := makeMessage()
+	msg.Secondary1.NoReply = true
+	msg.Secondary2.NoReply = true
+	Expect(m.PostMessage(msg)).NotTo(Succeed())
+
+	for _, c := range append(ss, m) {
+		result, err := c.GetMessages()
+		Expect(err).NotTo(HaveOccurred())
+		Expect(result).NotTo(ContainElement(msg.Message))
+	}
+})
+
+var _ = It("The explicit write concern w=3 errors if both nodes fail", func() {
+	m, ss := env()
+
+	msg := makeMessage()
+	msg.WriteConcern = 3
+	msg.Secondary1.NoReply = true
+	msg.Secondary2.NoReply = true
+	Expect(m.PostMessage(msg)).NotTo(Succeed())
+
+	for _, c := range append(ss, m) {
+		result, err := c.GetMessages()
+		Expect(err).NotTo(HaveOccurred())
+		Expect(result).NotTo(ContainElement(msg.Message))
+	}
+})
+
+var _ = It("The explicit write concern w=3 errors if one node fails (secondary-1)", func() {
+	m, ss := env()
+
+	msg := makeMessage()
+	msg.WriteConcern = 3
+	msg.Secondary1.NoReply = true
+	Expect(m.PostMessage(msg)).NotTo(Succeed())
+
+	for i, c := range append(ss, m) {
+		result, err := c.GetMessages()
+		secondary2 := i == 1
+		if !secondary2 {
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result).NotTo(ContainElement(msg.Message))
+		}
+	}
+})
+
+var _ = It("The explicit write concern w=3 errors if one node fails (secondary-2)", func() {
+	m, ss := env()
+
+	msg := makeMessage()
+	msg.WriteConcern = 3
+	msg.Secondary2.NoReply = true
+	Expect(m.PostMessage(msg)).NotTo(Succeed())
+
+	for i, c := range append(ss, m) {
+		result, err := c.GetMessages()
+		secondary1 := i == 0
+		if !secondary1 {
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result).NotTo(ContainElement(msg.Message))
+		}
+	}
+})
+
+var _ = It("Write concern w=2 errors if both nodes fail", func() {
+	m, ss := env()
+
+	msg := makeMessage()
+	msg.WriteConcern = 2
+	msg.Secondary1.NoReply = true
+	msg.Secondary2.NoReply = true
+	Expect(m.PostMessage(msg)).NotTo(Succeed())
+
+	for _, c := range append(ss, m) {
+		result, err := c.GetMessages()
+		Expect(err).NotTo(HaveOccurred())
+		Expect(result).NotTo(ContainElement(msg.Message))
+	}
+})
+
+var _ = It("Write concern w=2 succeeds if one of the nodes fails (secondary-1)", func() {
+	m, ss := env()
+
+	msg := makeMessage()
+	msg.WriteConcern = 2
+	msg.Secondary1.NoReply = true
+	Expect(m.PostMessage(msg)).To(Succeed())
+
+	for i, c := range append(ss, m) {
+		result, err := c.GetMessages()
+		secondary1 := i == 0
+		if secondary1 {
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result).NotTo(ContainElement(msg.Message))
+		} else {
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result).To(ContainElement(msg.Message))
+		}
+	}
+})
+
+var _ = It("Write concern w=2 succeeds if one of the nodes fails (secondary-2)", func() {
+	m, ss := env()
+
+	msg := makeMessage()
+	msg.WriteConcern = 2
+	msg.Secondary2.NoReply = true
+	Expect(m.PostMessage(msg)).To(Succeed())
+
+	for i, c := range append(ss, m) {
+		result, err := c.GetMessages()
+		secondary2 := i == 1
+		if secondary2 {
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result).NotTo(ContainElement(msg.Message))
+		} else {
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result).To(ContainElement(msg.Message))
+		}
+	}
+})
+
+var _ = It("If w=2 and secondary-2 returned the result, not waiting for secondary-1", func() {
+	m, _ := env()
+
+	msg := makeMessage()
+	msg.WriteConcern = 2
+	msg.Secondary1.Delay = 3 // In seconds.
+
+	takesAtMost(func() {
+		Expect(m.PostMessage(msg)).To(Succeed())
+	}, 2*time.Second)
+})
+
+var _ = It("If w=2 and secondary-1 returned the result, not waiting for secondary-2", func() {
+	m, _ := env()
+
+	msg := makeMessage()
+	msg.WriteConcern = 2
+	msg.Secondary2.Delay = 3 // In seconds.
+
+	takesAtMost(func() {
+		Expect(m.PostMessage(msg)).To(Succeed())
+	}, 2*time.Second)
+})
+
+var _ = It("If w=1, not waiting at all", func() {
+	m, _ := env()
+
+	msg := makeMessage()
+	msg.WriteConcern = 1
+	msg.Secondary1.Delay = 3 // In seconds.
+	msg.Secondary2.Delay = 3 // In seconds.
+
+	takesAtMost(func() {
+		Expect(m.PostMessage(msg)).To(Succeed())
+	}, 1*time.Second)
+})
+
 func env() (*integration.Client, []*integration.Client) {
 	c, err := integration.MasterConfig()
 	Expect(err).NotTo(HaveOccurred())
@@ -138,6 +382,13 @@ func takesAtLeast(f func(), t time.Duration) {
 	f()
 	end := time.Now()
 	Expect(end).To(BeTemporally(">", begin.Add(t)), "Execution didn't take long enough")
+}
+
+func takesAtMost(f func(), t time.Duration) {
+	begin := time.Now()
+	f()
+	end := time.Now()
+	Expect(end).To(BeTemporally("<", begin.Add(t)), "Execution took too long")
 }
 
 func makeMessage() integration.Message {
