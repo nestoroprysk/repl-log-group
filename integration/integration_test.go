@@ -70,8 +70,11 @@ var _ = It("Many messages get replicated", func() {
 	m, ss := env()
 
 	var msgs []integration.Message
+	var expected []string
 	for i := 0; i < 100; i++ {
-		msgs = append(msgs, makeMessage())
+		m := makeMessage()
+		msgs = append(msgs, m)
+		expected = append(expected, m.Message)
 	}
 
 	var wg sync.WaitGroup
@@ -86,13 +89,7 @@ var _ = It("Many messages get replicated", func() {
 	}
 	wg.Wait()
 
-	expected, err := m.GetMessages()
-	Expect(err).NotTo(HaveOccurred())
-	for _, m := range msgs {
-		Expect(expected).To(ContainElement(m.Message))
-	}
-
-	for _, c := range ss {
+	for _, c := range append(ss, m) {
 		result, err := c.GetMessages()
 		Expect(err).NotTo(HaveOccurred())
 		Expect(result).To(ContainElements(expected))
