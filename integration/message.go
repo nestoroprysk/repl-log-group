@@ -1,9 +1,10 @@
 package integration
 
 type Message struct {
-	Message    string          `json:"message"`
-	Secondary1 SecondaryConfig `json:"secondary-1"`
-	Secondary2 SecondaryConfig `json:"secondary-2"`
+	Message      string          `json:"message"`
+	WriteConcern int             `json:"w"`
+	Secondary1   SecondaryConfig `json:"secondary-1"`
+	Secondary2   SecondaryConfig `json:"secondary-2"`
 }
 
 type SecondaryConfig struct {

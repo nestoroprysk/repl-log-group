@@ -25,8 +25,16 @@ Replication log is a distributed systems course homework [assignment](https://do
     export message='{"message": "123", "secondary-1":{"delay":5}, "secondary-2":{"delay":5}}'
     curl -H "Content-Type: application/json" -X POST -d ${message} localhost:8080/messages
 
-    # post a message and force secondary-2 not to reply and ignore the message
+    # post a message and force secondary-2 not to reply and ignore the message (the error is expected because the default write concern is w=3)
     export message='{"message": "yai", "secondary-2":{"noreply":true}}'
+    curl -H "Content-Type: application/json" -X POST -d ${message} localhost:8080/messages
+
+    # post a message with write concern 1 (possible values are 1, 2, and 3) and expect success (even if all the replicas error)
+    export message='{"message": "yai", "w": 1, "secondary-1":{"noreply":true}, "secondary-2":{"noreply":true}}'
+    curl -H "Content-Type: application/json" -X POST -d ${message} localhost:8080/messages
+    
+    # post a message with write concern 2 and expect success when a single replica errors
+    export message='{"message": "yai", "w": 2, "secondary-1":{"noreply":true}}'
     curl -H "Content-Type: application/json" -X POST -d ${message} localhost:8080/messages
 
     # list messages of master
