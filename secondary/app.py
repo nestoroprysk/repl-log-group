@@ -14,19 +14,20 @@ lock = Lock()
 def post():
     print(request.json, file=sys.stderr)
 
+    msg = request.json.get("message")
     delay = request.json.get("delay")
+    noreply = request.json.get("noreply")
+
     if delay:
         sleep(float(delay))
 
-    noreply = request.json.get("noreply")
-    if noreply == True:
-        return
+    if noreply:
+        return ''
+    else:
+        with lock:
+            data.append(msg):
 
-    msg = request.json.get("message")
-    with lock:
-        data.append(msg)
-
-    return jsonify(msg)
+        return jsonify(msg)
 
 
 @app.route('/messages', methods=['GET'])
