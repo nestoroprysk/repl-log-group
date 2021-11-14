@@ -109,9 +109,11 @@ def add_message():
     with lock:
         message = request.json.get('message')
         id = request.json.get('id')
-        if not id in tr_id:
+        if id and not id in tr_id:
             messages.append(message)
             tr_id.append(id)
+        else:
+            messages.append(message)
 
     return jsonify(message)
 
