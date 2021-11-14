@@ -1,6 +1,7 @@
 import os
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor
+from itertools import count
 from threading import Lock
 
 import requests
@@ -14,6 +15,9 @@ lock = Lock()
 messages = deque()
 
 client_ports = [os.getenv('SECONDARY_1_PORT'), os.getenv('SECONDARY_2_PORT')]
+
+counter = count()
+tr_id = []
 
 
 @app.route('/ping', methods=['GET'])
@@ -42,6 +46,8 @@ def add_message():
     fail = []
 
     executor = ThreadPoolExecutor()
+    current_id = next(counter)
+
     for index, port in enumerate(client_ports):
         d = request.get_json()
         delay = 0
@@ -58,7 +64,8 @@ def add_message():
         d = {
             'message': d.get('message'),
             'delay': delay,
-            'noreply': noreply
+            'noreply': noreply,
+            'id': current_id,
         }
 
         def replicate_message(data: dict, index: int, port: str):
@@ -101,7 +108,10 @@ def add_message():
 
     with lock:
         message = request.json.get('message')
-        messages.append(message)
+        id = request.json.get('id')
+        if not id in tr_id:
+            messages.append(message)
+            tr_id.append(id)
 
     return jsonify(message)
 
