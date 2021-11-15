@@ -7,6 +7,7 @@ import sys
 app = Flask(__name__)
 
 data = []
+tr_id = []
 lock = Lock()
 
 
@@ -22,9 +23,13 @@ def post():
     if noreply == True:
         return
 
+    id = request.json.get("id")
+
     msg = request.json.get("message")
     with lock:
-        data.append(msg)
+        if not id in tr_id:
+            data.append(msg)
+            tr_id.append(id)
 
     return jsonify(msg)
 
