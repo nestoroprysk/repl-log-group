@@ -25,7 +25,7 @@ def post():
         return ''
     else:
         with lock:
-            data.append(msg):
+            data.append(msg)
 
         return jsonify(msg)
 
