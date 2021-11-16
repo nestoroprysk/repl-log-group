@@ -85,6 +85,18 @@ def add_message():
 
     executor.shutdown(wait=False)
 
+    def safe_add_message():
+        with lock:
+            message = request.json.get('message')
+            id = request.json.get('id')
+            if id and not id in tr_id:
+                messages.append(message)
+                tr_id.append(id)
+            else:
+                messages.append(message)
+
+            return message
+
     timeout = time.time() + 60/2   # half a minute from now.
     while True:
         if expected_success_count == 0:
@@ -92,6 +104,7 @@ def add_message():
 
         if time.time() > timeout:
             with result_lock:
+                safe_add_message()
                 return f"timeout exceeded with success {success} and fail {fail}", 500
 
         with result_lock:
@@ -100,22 +113,15 @@ def add_message():
             if expected_success_count == 2 and len(success) == 2:
                 break # Satisfied w=3.
             if len(fail) == 2:
+                safe_add_message()
                 return f"write concern is {expected_success_count + 1} (not 1) and failed to replicate to both of the nodes: {fail}", 500
             if expected_success_count == 2 and len(fail) != 0:
+                safe_add_message()
                 return f"write concern is {expected_success_count + 1} and failed to replicate to one of the nodes: {fail}", 500
 
         time.sleep(0.2)
 
-    with lock:
-        message = request.json.get('message')
-        id = request.json.get('id')
-        if id and not id in tr_id:
-            messages.append(message)
-            tr_id.append(id)
-        else:
-            messages.append(message)
-
-    return jsonify(message)
+    return jsonify(safe_add_message())
 
 
 @app.route('/messages', methods=['GET'])
