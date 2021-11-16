@@ -1,3 +1,4 @@
+from itertools import count
 from threading import Lock
 from time import sleep
 
@@ -8,6 +9,8 @@ app = Flask(__name__)
 
 data = []
 tr_id = []
+counter = count()
+
 lock = Lock()
 
 
@@ -27,9 +30,13 @@ def post():
 
     msg = request.json.get("message")
     with lock:
+        check_id = next(counter)
         if not id in tr_id:
-            data.append(msg)
-            tr_id.append(id)
+            while check_id != id:
+                sleep(0.01)
+            else:
+                data.append(msg)
+                tr_id.append(id)
 
     return jsonify(msg)
 
