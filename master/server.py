@@ -1,7 +1,8 @@
 import os
 import threading
+from typing import Optional
 from collections import deque
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor
 
 import requests
 from flask import Flask, jsonify, request
@@ -14,19 +15,26 @@ lock = threading.Lock()
 
 
 class CountDownLatch:
-    def __init__(self, count=1):
-        self.count = count
+    def __init__(self, count: Optional[int] = None, success_count: Optional[int] = None):
+        self.requests_count = count
+        self.success_count = success_count
         self.lock = threading.Condition()
 
-    def count_down(self):
+    def request_count_down(self):
         with self.lock:
-            self.count -= 1
-            if self.count <= 0:
+            self.requests_count -= 1
+            if self.requests_count <= 0:
+                self.lock.notify_all()
+
+    def success_count_down(self):
+        with self.lock:
+            self.success_count -= 1
+            if self.success_count <= 0:
                 self.lock.notify_all()
 
     def wait(self):
         with self.lock:
-            while self.count > 0:
+            while self.requests_count > 0 and self.success_count > 0:
                 self.lock.wait()
 
 
@@ -42,7 +50,10 @@ def add_message():
         messages.append(message)
         write_concern = request.json.get('w') - 1
 
-    latch = CountDownLatch(write_concern)
+    latch = CountDownLatch(
+        count=len(client_ports),
+        success_count=write_concern,
+    )
 
     data = request.get_json()
 
@@ -75,7 +86,11 @@ def add_message():
 
     latch.wait()
 
-    return jsonify(message)
+    if latch.success_count > 0:
+        # todo: detailed message
+        return 'Error', 500
+    else:
+        return jsonify(message)
 
 
 @app.route('/messages', methods=['GET'])
@@ -85,14 +100,22 @@ def list_messages():
 
 def replicate_message(data: dict, index: int, port: str, latch: CountDownLatch) -> requests.Response:
     url = f'http://secondary-{index + 1}:{port}/messages'
-    response = requests.post(
-        url,
-        json=data,
-    )
+    try:
+        response = requests.post(
+            url,
+            json=data,
+            timeout=10,
+        )
+        response.raise_for_status()
 
-    if response.status_code == 200:
-        latch.count_down()
-    else:
-        pass
+        if response.status_code == 200:
+            latch.success_count_down()
 
-    return response
+        latch.request_count_down()
+
+        return response
+
+    except Exception as e:
+        latch.request_count_down()
+        return str(e), 500
+

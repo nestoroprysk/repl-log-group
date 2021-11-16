@@ -1,7 +1,7 @@
 from threading import Lock
 from time import sleep
 
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, abort
 import sys
 
 app = Flask(__name__)
@@ -22,7 +22,7 @@ def post():
         sleep(float(delay))
 
     if noreply:
-        return ''
+        return '', 500
     else:
         with lock:
             data.append(msg)
