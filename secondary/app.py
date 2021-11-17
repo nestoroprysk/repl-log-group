@@ -24,7 +24,7 @@ def post():
 
     noreply = request.json.get("noreply")
     if noreply == True:
-        return
+        return "", 500
 
     id = request.json.get("id")
 

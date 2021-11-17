@@ -136,10 +136,18 @@ var _ = It("Noreply is respected", func() {
 	msg.Secondary2.NoReply = true
 	Expect(m.PostMessage(msg)).NotTo(Succeed())
 
-	for _, c := range append(ss, m) {
+	for i, c := range append(ss, m) {
 		result, err := c.GetMessages()
 		Expect(err).NotTo(HaveOccurred())
-		Expect(result).NotTo(ContainElement(msg.Message))
+
+		master := i == 2
+		if master {
+			Expect(result).To(ContainElement(msg.Message))
+		} else {
+			result, err := c.GetMessages()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result).NotTo(ContainElement(msg.Message))
+		}
 	}
 
 	msg = makeMessage()
@@ -149,8 +157,12 @@ var _ = It("Noreply is respected", func() {
 	for i, c := range append(ss, m) {
 		result, err := c.GetMessages()
 		Expect(err).NotTo(HaveOccurred())
-		secondary2 := i == 1
-		if !secondary2 {
+
+		master := i == 2
+		secondary1 := i == 0
+		if master {
+			Expect(result).To(ContainElement(msg.Message))
+		} else if secondary1 {
 			Expect(result).NotTo(ContainElement(msg.Message))
 		}
 	}
@@ -162,8 +174,12 @@ var _ = It("Noreply is respected", func() {
 	for i, c := range append(ss, m) {
 		result, err := c.GetMessages()
 		Expect(err).NotTo(HaveOccurred())
-		secondary1 := i == 0
-		if !secondary1 {
+
+		master := i == 2
+		secondary2 := i == 1
+		if master {
+			Expect(result).To(ContainElement(msg.Message))
+		} else if secondary2 {
 			Expect(result).NotTo(ContainElement(msg.Message))
 		}
 	}
@@ -201,10 +217,16 @@ var _ = It("The default write concern (w=3) errors if both nodes fail", func() {
 	msg.Secondary2.NoReply = true
 	Expect(m.PostMessage(msg)).NotTo(Succeed())
 
-	for _, c := range append(ss, m) {
+	for i, c := range append(ss, m) {
 		result, err := c.GetMessages()
 		Expect(err).NotTo(HaveOccurred())
-		Expect(result).NotTo(ContainElement(msg.Message))
+
+		master := i == 2
+		if master {
+			Expect(result).To(ContainElement(msg.Message))
+		} else {
+			Expect(result).NotTo(ContainElement(msg.Message))
+		}
 	}
 })
 
@@ -217,10 +239,16 @@ var _ = It("The explicit write concern w=3 errors if both nodes fail", func() {
 	msg.Secondary2.NoReply = true
 	Expect(m.PostMessage(msg)).NotTo(Succeed())
 
-	for _, c := range append(ss, m) {
+	for i, c := range append(ss, m) {
 		result, err := c.GetMessages()
 		Expect(err).NotTo(HaveOccurred())
-		Expect(result).NotTo(ContainElement(msg.Message))
+
+		master := i == 2
+		if master {
+			Expect(result).To(ContainElement(msg.Message))
+		} else {
+			Expect(result).NotTo(ContainElement(msg.Message))
+		}
 	}
 })
 
@@ -234,9 +262,13 @@ var _ = It("The explicit write concern w=3 errors if one node fails (secondary-1
 
 	for i, c := range append(ss, m) {
 		result, err := c.GetMessages()
-		secondary2 := i == 1
-		if !secondary2 {
-			Expect(err).NotTo(HaveOccurred())
+		Expect(err).NotTo(HaveOccurred())
+
+		master := i == 2
+		secondary1 := i == 0
+		if master {
+			Expect(result).To(ContainElement(msg.Message))
+		} else if secondary1 {
 			Expect(result).NotTo(ContainElement(msg.Message))
 		}
 	}
@@ -252,9 +284,13 @@ var _ = It("The explicit write concern w=3 errors if one node fails (secondary-2
 
 	for i, c := range append(ss, m) {
 		result, err := c.GetMessages()
-		secondary1 := i == 0
-		if !secondary1 {
-			Expect(err).NotTo(HaveOccurred())
+		Expect(err).NotTo(HaveOccurred())
+
+		master := i == 2
+		secondary2 := i == 1
+		if master {
+			Expect(result).To(ContainElement(msg.Message))
+		} else if secondary2 {
 			Expect(result).NotTo(ContainElement(msg.Message))
 		}
 	}
@@ -269,10 +305,16 @@ var _ = It("Write concern w=2 errors if both nodes fail", func() {
 	msg.Secondary2.NoReply = true
 	Expect(m.PostMessage(msg)).NotTo(Succeed())
 
-	for _, c := range append(ss, m) {
+	for i, c := range append(ss, m) {
 		result, err := c.GetMessages()
 		Expect(err).NotTo(HaveOccurred())
-		Expect(result).NotTo(ContainElement(msg.Message))
+
+		master := i == 2
+		if master {
+			Expect(result).To(ContainElement(msg.Message))
+		} else {
+			Expect(result).NotTo(ContainElement(msg.Message))
+		}
 	}
 })
 
