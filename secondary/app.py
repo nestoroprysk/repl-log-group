@@ -20,14 +20,14 @@ def post():
         sleep(float(delay))
 
     noreply = request.json.get("noreply")
-    if noreply == True:
+    if noreply:
         return "", 500
 
     id = request.json.get("id")
 
     msg = request.json.get("message")
     with lock:
-        if not id in tr_id:
+        if id not in tr_id:
             data.append(msg)
             tr_id.append(id)
 

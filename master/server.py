@@ -14,6 +14,9 @@ messages = deque()
 client_ports = [os.getenv('SECONDARY_1_PORT'), os.getenv('SECONDARY_2_PORT')]
 lock = threading.Lock()
 
+counter = count()
+tr_id = []
+
 
 class CountDownLatch:
     def __init__(self, requests_count: Optional[int] = None, success_count: Optional[int] = None):
@@ -38,9 +41,6 @@ class CountDownLatch:
             while self.requests_count > 0 and self.success_count > 0:
                 self.lock.wait()
 
-counter = count()
-tr_id = []
-
 
 @app.route('/ping', methods=['GET'])
 def ping():
@@ -51,7 +51,6 @@ def ping():
 def add_message():
     with lock:
         message = request.json.get('message')
-        messages.append(message)
         current_id = next(counter)
         write_concern = request.json.get('w') - 1
 
@@ -62,13 +61,11 @@ def add_message():
             messages.append(message)
 
     latch = CountDownLatch(
-        count=len(client_ports),
+        requests_count=len(client_ports),
         success_count=write_concern,
     )
 
     data = request.get_json()
-
-    futures = list()
 
     if write_concern == 0:
         return jsonify(message)
@@ -88,10 +85,10 @@ def add_message():
                 'message': data.get('message'),
                 'delay': delay,
                 'noreply': noreply,
+                'id': current_id,
             }
 
-            future = executor.submit(replicate_message, d, index, port, latch)
-            futures.append(future)
+            executor.submit(replicate_message, d, index, port, latch)
 
         executor.shutdown(wait=False)
 
@@ -115,7 +112,6 @@ def replicate_message(data: dict, index: int, port: str, latch: CountDownLatch) 
         response = requests.post(
             url,
             json=data,
-            timeout=10,
         )
         response.raise_for_status()
 
@@ -129,4 +125,3 @@ def replicate_message(data: dict, index: int, port: str, latch: CountDownLatch) 
     except Exception as e:
         latch.request_count_down()
         return str(e), 500
-
