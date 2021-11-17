@@ -46,7 +46,9 @@ def add_message():
     fail = []
 
     executor = ThreadPoolExecutor()
-    current_id = next(counter)
+
+    with result_lock:
+        current_id = next(counter)
 
     for index, port in enumerate(client_ports):
         d = request.get_json()

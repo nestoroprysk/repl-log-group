@@ -1,4 +1,3 @@
-from itertools import count
 from threading import Lock
 from time import sleep
 
@@ -7,11 +6,22 @@ import sys
 
 app = Flask(__name__)
 
-data = []
+data = {}
 tr_id = []
-counter = count()
-
 lock = Lock()
+
+
+def extract_data(data: dict):
+    result = [data[i] for i in sorted(data)]
+    if len(result) == 1:
+        return result
+    result = [result[0]]
+    sorted_data_id = sorted(data)
+    for i in range(1, len(sorted_data_id)):
+        if sorted_data_id[i]-1 == sorted_data_id[i-1]:
+            result.append(data[sorted_data_id[i]])
+    # result = [data[i] for i in sorted(data)]
+    return result
 
 
 @app.route("/messages", methods=["POST"])
@@ -30,20 +40,17 @@ def post():
 
     msg = request.json.get("message")
     with lock:
-        check_id = next(counter)
         if not id in tr_id:
-            while check_id != id:
-                sleep(0.01)
-            else:
-                data.append(msg)
-                tr_id.append(id)
+            data[id] = msg
+            tr_id.append(id)
 
     return jsonify(msg)
 
 
 @app.route('/messages', methods=['GET'])
 def get():
-    return jsonify(data)
+    result = extract_data(data)
+    return jsonify(result)
 
 
 @app.route("/ping", methods=["GET"])
