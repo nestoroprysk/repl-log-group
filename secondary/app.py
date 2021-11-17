@@ -20,7 +20,6 @@ def extract_data(data: dict):
     for i in range(1, len(sorted_data_id)):
         if sorted_data_id[i]-1 == sorted_data_id[i-1]:
             result.append(data[sorted_data_id[i]])
-    # result = [data[i] for i in sorted(data)]
     return result
 
 
