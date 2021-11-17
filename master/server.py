@@ -3,6 +3,7 @@ import threading
 from typing import Optional
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor
+from itertools import count
 
 import requests
 from flask import Flask, jsonify, request
@@ -15,8 +16,8 @@ lock = threading.Lock()
 
 
 class CountDownLatch:
-    def __init__(self, count: Optional[int] = None, success_count: Optional[int] = None):
-        self.requests_count = count
+    def __init__(self, requests_count: Optional[int] = None, success_count: Optional[int] = None):
+        self.requests_count = requests_count
         self.success_count = success_count
         self.lock = threading.Condition()
 
@@ -37,6 +38,9 @@ class CountDownLatch:
             while self.requests_count > 0 and self.success_count > 0:
                 self.lock.wait()
 
+counter = count()
+tr_id = []
+
 
 @app.route('/ping', methods=['GET'])
 def ping():
@@ -48,7 +52,14 @@ def add_message():
     with lock:
         message = request.json.get('message')
         messages.append(message)
+        current_id = next(counter)
         write_concern = request.json.get('w') - 1
+
+        if current_id is not None and current_id not in tr_id:
+            messages.append(message)
+            tr_id.append(current_id)
+        else:
+            messages.append(message)
 
     latch = CountDownLatch(
         count=len(client_ports),

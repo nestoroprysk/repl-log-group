@@ -1,12 +1,13 @@
 from threading import Lock
 from time import sleep
 
-from flask import Flask, jsonify, request, abort
+from flask import Flask, jsonify, request
 import sys
 
 app = Flask(__name__)
 
 data = []
+tr_id = []
 lock = Lock()
 
 
@@ -14,20 +15,23 @@ lock = Lock()
 def post():
     print(request.json, file=sys.stderr)
 
-    msg = request.json.get("message")
     delay = request.json.get("delay")
-    noreply = request.json.get("noreply")
-
     if delay:
         sleep(float(delay))
 
-    if noreply:
-        return '', 500
-    else:
-        with lock:
-            data.append(msg)
+    noreply = request.json.get("noreply")
+    if noreply == True:
+        return "", 500
 
-        return jsonify(msg)
+    id = request.json.get("id")
+
+    msg = request.json.get("message")
+    with lock:
+        if not id in tr_id:
+            data.append(msg)
+            tr_id.append(id)
+
+    return jsonify(msg)
 
 
 @app.route('/messages', methods=['GET'])
