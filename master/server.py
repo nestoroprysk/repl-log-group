@@ -14,7 +14,8 @@ app = Flask(__name__)
 lock = Lock()
 messages = deque()
 
-client_ports = [os.getenv('SECONDARY_1_PORT'), os.getenv('SECONDARY_2_PORT')]
+secondaries_number = os.getenv('SECONDARIES_NUMBER')
+client_ports = [os.getenv(f'SECONDARY_{i}_PORT') for i in range(1, int(secondaries_number) + 1)]
 
 counter = count()
 tr_id = []
