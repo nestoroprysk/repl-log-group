@@ -5,7 +5,6 @@ from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 from itertools import count
 from threading import Lock
->>>>>>> 334f3d7 (nice-write-concern)
 
 import requests
 from flask import Flask, jsonify, request
@@ -19,12 +18,11 @@ except ImportError:
 app = Flask(__name__)
 messages = deque()
 
-secondaries_number = os.getenv('SECONDARIES_NUMBER')
-client_ports = [os.getenv(f'SECONDARY_{i}_PORT') for i in range(1, int(secondaries_number) + 1)]
+secondaries_number = int(os.getenv('SECONDARIES_NUMBER'))
+client_ports = [os.getenv(f'SECONDARY_{i}_PORT') for i in range(1, secondaries_number + 1)]
 lock = threading.Lock()
 
 counter = count()
-tr_id = []
 
 
 @app.route('/ping', methods=['GET'])
@@ -37,51 +35,47 @@ def add_message():
     with lock:
         message = request.json.get('message')
         current_id = next(counter)
-        write_concern = request.json.get('w') - 1
 
-        if current_id is not None and current_id not in tr_id:
-            messages.append(message)
-            tr_id.append(current_id)
-        else:
-            messages.append(message)
+        wait_count = secondaries_number
+        w = request.json.get('w')
+        if w is not None and w > 0 and w <= secondaries_number + 1:
+            wait_count = w - 1
+
+        messages.append(message)
 
     latch = CountDownLatch(
         requests_count=len(client_ports),
-        success_count=write_concern,
+        success_count=wait_count,
     )
 
     data = request.get_json()
 
-    if write_concern == 0:
-        return jsonify(message)
-    else:
-        executor = ThreadPoolExecutor()
+    executor = ThreadPoolExecutor()
 
-        for index, port in enumerate(client_ports):
-            conf = request.json.get(f'secondary-{index + 1}')
-            if conf:
-                delay = conf.get('delay', 0)
-                noreply = conf.get('noreply', False)
-            else:
-                delay = 0
-                noreply = False
+    for index, port in enumerate(client_ports):
+        conf = request.json.get(f'secondary-{index + 1}')
+        if conf:
+            delay = conf.get('delay', 0)
+            noreply = conf.get('noreply', False)
+        else:
+            delay = 0
+            noreply = False
 
-            d = {
-                'message': data.get('message'),
-                'delay': delay,
-                'noreply': noreply,
-                'id': current_id,
-            }
+        d = {
+            'message': data.get('message'),
+            'delay': delay,
+            'noreply': noreply,
+            'id': current_id,
+        }
 
-            executor.submit(replicate_message, d, index, port, latch)
+        executor.submit(replicate_message, d, index, port, latch)
 
-        executor.shutdown(wait=False)
+    executor.shutdown(wait=False)
 
     latch.wait()
 
     if latch.success_count > 0:
-        # todo: detailed message
-        return 'Error', 500
+        return 'write concern {w} violated ({lath.success_count} failed)', 500
     else:
         return jsonify(message)
 

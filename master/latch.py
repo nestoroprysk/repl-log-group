@@ -22,5 +22,13 @@ class CountDownLatch:
 
     def wait(self):
         with self.lock:
+            # success_count is set to the expected number of successes first
+            # success_count decreases on each success
+            # zero success_count means collected enough successes
+
+            # requests_count is set to the number of secondaries
+            # requests_count decreases on each fail
+            # requests_count decreases on each success
+            # zero requests_count means everything to execute is executed
             while self.requests_count > 0 and self.success_count > 0:
                 self.lock.wait()
