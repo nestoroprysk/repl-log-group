@@ -1,6 +1,6 @@
 import os
 import threading
-from typing import Optional
+from typing import Union, Tuple
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 from itertools import count
@@ -8,38 +8,21 @@ from itertools import count
 import requests
 from flask import Flask, jsonify, request
 
+try:
+    from latch import CountDownLatch
+except ImportError:
+    from .latch import CountDownLatch
+
+
 app = Flask(__name__)
 messages = deque()
 
-client_ports = [os.getenv('SECONDARY_1_PORT'), os.getenv('SECONDARY_2_PORT')]
+secondaries_number = os.getenv('SECONDARIES_NUMBER')
+client_ports = [os.getenv(f'SECONDARY_{i}_PORT') for i in range(1, int(secondaries_number) + 1)]
 lock = threading.Lock()
 
 counter = count()
 tr_id = []
-
-
-class CountDownLatch:
-    def __init__(self, requests_count: Optional[int] = None, success_count: Optional[int] = None):
-        self.requests_count = requests_count
-        self.success_count = success_count
-        self.lock = threading.Condition()
-
-    def request_count_down(self):
-        with self.lock:
-            self.requests_count -= 1
-            if self.requests_count <= 0:
-                self.lock.notify_all()
-
-    def success_count_down(self):
-        with self.lock:
-            self.success_count -= 1
-            if self.success_count <= 0:
-                self.lock.notify_all()
-
-    def wait(self):
-        with self.lock:
-            while self.requests_count > 0 and self.success_count > 0:
-                self.lock.wait()
 
 
 @app.route('/ping', methods=['GET'])
@@ -106,7 +89,12 @@ def list_messages():
     return jsonify(list(messages))
 
 
-def replicate_message(data: dict, index: int, port: str, latch: CountDownLatch) -> requests.Response:
+def replicate_message(
+        data: dict,
+        index: int,
+        port: str,
+        latch: CountDownLatch,
+) -> Union[requests.Response, Tuple[str, int]]:
     url = f'http://secondary-{index + 1}:{port}/messages'
     try:
         response = requests.post(
