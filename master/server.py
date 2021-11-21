@@ -4,7 +4,6 @@ from typing import Union, Tuple
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 from itertools import count
-from threading import Lock
 
 import requests
 from flask import Flask, jsonify, request
@@ -38,7 +37,7 @@ def add_message():
 
         wait_count = secondaries_number
         w = request.json.get('w')
-        if w is not None and w > 0 and w <= secondaries_number + 1:
+        if w is not None and 0 < w <= secondaries_number + 1:
             wait_count = w - 1
 
         messages.append(message)
@@ -61,14 +60,14 @@ def add_message():
             delay = 0
             noreply = False
 
-        d = {
+        secondary_data = {
             'message': data.get('message'),
             'delay': delay,
             'noreply': noreply,
             'id': current_id,
         }
 
-        executor.submit(replicate_message, d, index, port, latch)
+        executor.submit(replicate_message, secondary_data, index, port, latch)
 
     executor.shutdown(wait=False)
 

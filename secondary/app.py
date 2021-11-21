@@ -7,7 +7,7 @@ import sys
 app = Flask(__name__)
 
 data = []
-tr_id = []
+message_ids = set()
 lock = Lock()
 
 
@@ -16,20 +16,20 @@ def post():
     print(request.json, file=sys.stderr)
 
     noreply = request.json.get("noreply")
-    if noreply == True:
+    if noreply:
         return "failing by the noreply field", 500
 
     delay = request.json.get("delay")
     if delay:
         sleep(float(delay))
 
-    id = request.json.get("id")
+    id_ = request.json.get("id")
 
     msg = request.json.get("message")
     with lock:
-        if not id in tr_id:
+        if id_ not in message_ids:
             data.append(msg)
-            tr_id.append(id)
+            message_ids.add(id_)
 
     return jsonify(msg)
 
