@@ -15,13 +15,13 @@ lock = Lock()
 def post():
     print(request.json, file=sys.stderr)
 
+    noreply = request.json.get("noreply")
+    if noreply == True:
+        return "failing by the noreply field", 500
+
     delay = request.json.get("delay")
     if delay:
         sleep(float(delay))
-
-    noreply = request.json.get("noreply")
-    if noreply == True:
-        return "", 500
 
     id = request.json.get("id")
 
