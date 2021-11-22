@@ -1,6 +1,9 @@
 FROM python:3.7-alpine
 
+WORKDIR /master
+
 ENV FLASK_APP server.py
+ENV SECONDARIES_NUMBER 2
 
 COPY . .
 

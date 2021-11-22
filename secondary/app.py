@@ -12,14 +12,16 @@ lock = Lock()
 
 
 def extract_data(data: dict):
-    result = [data[i] for i in sorted(data)]
+    sorted_data_id = sorted(data)
+    result = [data[i] for i in sorted_data_id]
     if len(result) == 1:
         return result
     result = [result[0]]
-    sorted_data_id = sorted(data)
     for i in range(1, len(sorted_data_id)):
         if sorted_data_id[i]-1 == sorted_data_id[i-1]:
             result.append(data[sorted_data_id[i]])
+    if sorted_data_id[0] != 0:
+        return
     return result
 
 
@@ -27,19 +29,19 @@ def extract_data(data: dict):
 def post():
     print(request.json, file=sys.stderr)
 
+    noreply = request.json.get("noreply")
+    if noreply:
+        return "failing by the noreply field", 500
+
     delay = request.json.get("delay")
     if delay:
         sleep(float(delay))
-
-    noreply = request.json.get("noreply")
-    if noreply == True:
-        return "", 500
 
     id = request.json.get("id")
 
     msg = request.json.get("message")
     with lock:
-        if not id in tr_id:
+        if id not in tr_id:
             data[id] = msg
             tr_id.append(id)
 
