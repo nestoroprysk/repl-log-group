@@ -96,8 +96,8 @@ def replicate_message(
     try:
         with requests.Session() as session:
             retries = Retry(
-                total=10,
-                backoff_factor=1,
+                total=1,
+                backoff_factor=0.1,
                 status_forcelist=[500, 502, 503, 504],
                 allowed_methods=frozenset(['GET', 'POST']),
             )
@@ -107,7 +107,6 @@ def replicate_message(
             response = session.post(
                 url,
                 json=data,
-                timeout=3,
             )
             response.raise_for_status()
 
