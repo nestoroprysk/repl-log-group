@@ -74,7 +74,7 @@ def add_message():
     latch.wait()
 
     if latch.success_count > 0:
-        return 'write concern {w} violated ({lath.success_count} failed)', 500
+        return f'write concern {w} violated ({latch.success_count} failed)', 500
     else:
         return jsonify(message)
 
