@@ -6,6 +6,8 @@ from concurrent.futures import ThreadPoolExecutor
 from itertools import count
 
 import requests
+from requests.adapters import HTTPAdapter
+from requests.packages.urllib3.util.retry import Retry
 from flask import Flask, jsonify, request
 
 try:
@@ -92,16 +94,27 @@ def replicate_message(
 ) -> Union[requests.Response, Tuple[str, int]]:
     url = f'http://secondary-{index + 1}:{port}/messages'
     try:
-        response = requests.post(
-            url,
-            json=data,
-        )
-        response.raise_for_status()
+        with requests.Session() as session:
+            retries = Retry(
+                total=10,
+                backoff_factor=1,
+                status_forcelist=[500, 502, 503, 504],
+                allowed_methods=frozenset(['GET', 'POST']),
+            )
 
-        if response.status_code == 200:
-            latch.success_count_down()
+            session.mount('http://', HTTPAdapter(max_retries=retries))
 
-        latch.request_count_down()
+            response = session.post(
+                url,
+                json=data,
+                timeout=3,
+            )
+            response.raise_for_status()
+
+            if response.status_code == 200:
+                latch.success_count_down()
+
+            latch.request_count_down()
 
         return response
 
