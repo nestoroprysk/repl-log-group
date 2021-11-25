@@ -6,4 +6,4 @@ COPY . .
 
 RUN go mod download
 
-CMD [ "go", "test", "/app", "-count=1" ]
+CMD [ "go", "test", "/app", "-count=1", "-p=1" ]

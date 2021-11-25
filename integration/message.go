@@ -5,6 +5,8 @@ type Message struct {
 	WriteConcern int             `json:"w"`
 	Secondary1   SecondaryConfig `json:"secondary-1"`
 	Secondary2   SecondaryConfig `json:"secondary-2"`
+	// ID is only used for testing behavior of secondaries by direct POSTs to them (which is not allowed to users).
+	ID int `json:"id"`
 }
 
 type SecondaryConfig struct {
