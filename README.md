@@ -56,5 +56,5 @@ Replication log is a distributed systems course homework [assignment](https://do
     docker-compose up --build test
 
     # locally (from the folder ./integration)
-     MASTER_HOST=localhost MASTER_PORT=8080 SECONDARY_1_HOST=localhost SECONDARY_1_PORT=8081 SECONDARY_2_HOST=localhost SECONDARY_2_PORT=8082 go test -count=1
+     MASTER_HOST=localhost MASTER_PORT=8080 SECONDARY_1_HOST=localhost SECONDARY_1_PORT=8081 SECONDARY_2_HOST=localhost SECONDARY_2_PORT=8082 go test -count=1 -p=1
 ```
