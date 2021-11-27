@@ -68,3 +68,15 @@ func (t *Client) PostMessage(m Message) error {
 
 	return nil
 }
+
+func (t *Client) Flush() error {
+	resp, err := t.R().Post(t.address + "/flush")
+	if err != nil {
+		return err
+	}
+	if resp.StatusCode() != http.StatusOK {
+		return fmt.Errorf("expecting status created, got: %d", resp.StatusCode())
+	}
+
+	return nil
+}

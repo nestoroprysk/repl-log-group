@@ -17,25 +17,23 @@ except ImportError:
 
 
 app = Flask(__name__)
-messages = deque()
 
 secondaries_number = int(os.getenv('SECONDARIES_NUMBER'))
 client_ports = [os.getenv(f'SECONDARY_{i}_PORT') for i in range(1, secondaries_number + 1)]
+
 lock = threading.Lock()
-
-counter = count()
-
-
-@app.route('/ping', methods=['GET'])
-def ping():
-    return 'pong'
+messages = deque()
+next_id = 0
 
 
 @app.route('/messages', methods=['POST'])
 def add_message():
+    global next_id
+
     with lock:
         message = request.json.get('message')
-        current_id = next(counter)
+        current_id = next_id
+        next_id = next_id + 1
 
         wait_count = secondaries_number
         w = request.json.get('w')
@@ -79,11 +77,6 @@ def add_message():
         return f'write concern {w} violated ({latch.success_count} failed)', 500
     else:
         return jsonify(message)
-
-
-@app.route('/messages', methods=['GET'])
-def list_messages():
-    return jsonify(list(messages))
 
 
 def replicate_message(
@@ -140,3 +133,24 @@ def _send_request(url: str, data: dict) -> requests.Response:
         response = session.post(url, json=data, timeout=5)
 
         return response
+
+
+@app.route('/messages', methods=['GET'])
+def list_messages():
+    return jsonify(list(messages))
+
+
+@app.route('/ping', methods=['GET'])
+def ping():
+    return 'pong'
+
+
+@app.route('/flush', methods=['POST'])
+def flush():
+    global next_id
+
+    with lock:
+        messages.clear()
+        next_id = 0
+
+    return 'ok'
