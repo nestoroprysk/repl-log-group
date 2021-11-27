@@ -92,31 +92,51 @@ def replicate_message(
         port: str,
         latch: CountDownLatch,
 ) -> Union[requests.Response, Tuple[str, int]]:
+    """
+    Replicates message for a single secondary node
+    :param data: request body
+    :param index: node index
+    :param port: secondary node port
+    :param latch: CountDownLatch object for synchronization
+    :return: requests.Response object or (error_message, status_code)
+    """
     url = f'http://secondary-{index + 1}:{port}/messages'
     try:
-        with requests.Session() as session:
-            retries = Retry(
-                total=1,
-                backoff_factor=0.1,
-                status_forcelist=[500, 502, 503, 504],
-                allowed_methods=frozenset(['GET', 'POST']),
-            )
+        response = _send_request(url, data)
+        response.raise_for_status()
 
-            session.mount('http://', HTTPAdapter(max_retries=retries))
+        if response.status_code == 200:
+            latch.success_count_down()
 
-            response = session.post(
-                url,
-                json=data,
-            )
-            response.raise_for_status()
-
-            if response.status_code == 200:
-                latch.success_count_down()
-
-            latch.request_count_down()
+        latch.request_count_down()
 
         return response
 
     except Exception as e:
         latch.request_count_down()
         return str(e), 500
+
+
+def _send_request(url: str, data: dict) -> requests.Response:
+    """
+    Performs POST request with retry
+    :param url: node url
+    :param data: request body
+    :return: requests.Response object
+    """
+    noreply = data.get('noreply')
+
+    with requests.Session() as session:
+        if not noreply:
+            retries = Retry(
+                total=None,
+                backoff_factor=1,
+                status_forcelist=[500, 502, 503, 504],
+                allowed_methods=frozenset(['GET', 'POST']),
+            )
+
+            session.mount('http://', HTTPAdapter(max_retries=retries))
+
+        response = session.post(url, json=data, timeout=5)
+
+        return response
