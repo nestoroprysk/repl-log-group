@@ -6,6 +6,8 @@ from concurrent.futures import ThreadPoolExecutor
 from itertools import count
 
 import requests
+from requests.adapters import HTTPAdapter
+from requests.packages.urllib3.util.retry import Retry
 from flask import Flask, jsonify, request
 
 try:
@@ -83,12 +85,17 @@ def replicate_message(
         port: str,
         latch: CountDownLatch,
 ) -> Union[requests.Response, Tuple[str, int]]:
+    """
+    Replicates message for a single secondary node
+    :param data: request body
+    :param index: node index
+    :param port: secondary node port
+    :param latch: CountDownLatch object for synchronization
+    :return: requests.Response object or (error_message, status_code)
+    """
     url = f'http://secondary-{index + 1}:{port}/messages'
     try:
-        response = requests.post(
-            url,
-            json=data,
-        )
+        response = _send_request(url, data)
         response.raise_for_status()
 
         if response.status_code == 200:
@@ -101,6 +108,31 @@ def replicate_message(
     except Exception as e:
         latch.request_count_down()
         return str(e), 500
+
+
+def _send_request(url: str, data: dict) -> requests.Response:
+    """
+    Performs POST request with retry
+    :param url: node url
+    :param data: request body
+    :return: requests.Response object
+    """
+    noreply = data.get('noreply')
+
+    with requests.Session() as session:
+        if not noreply:
+            retries = Retry(
+                total=None,
+                backoff_factor=1,
+                status_forcelist=[500, 502, 503, 504],
+                allowed_methods=frozenset(['GET', 'POST']),
+            )
+
+            session.mount('http://', HTTPAdapter(max_retries=retries))
+
+        response = session.post(url, json=data, timeout=5)
+
+        return response
 
 
 @app.route('/messages', methods=['GET'])
