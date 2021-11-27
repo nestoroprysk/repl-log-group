@@ -5,6 +5,10 @@ Replication log is a distributed systems course homework [assignment](https://do
 # Running the App
 
 ```bash
+# build the system
+docker-compose up --build master secondary-1 secondary-2
+
+# build the system and run tests
 docker-compose up --build
 ```
 
