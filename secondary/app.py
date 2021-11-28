@@ -52,9 +52,9 @@ def get():
     return jsonify(messages)
 
 
-@app.route("/ping", methods=["GET"])
+@app.route('/ping', methods=['GET'])
 def ping():
-    return "pong"
+    return 'pong'
 
 
 @app.route('/flush', methods=['POST'])

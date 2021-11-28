@@ -3,7 +3,6 @@ import threading
 from typing import Union, Tuple
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor
-from itertools import count
 
 import requests
 from requests.adapters import HTTPAdapter
@@ -12,9 +11,10 @@ from flask import Flask, jsonify, request
 
 try:
     from latch import CountDownLatch
+    from health import monitor_nodes_status
 except ImportError:
     from .latch import CountDownLatch
-
+    from .health import monitor_nodes_status
 
 app = Flask(__name__)
 
@@ -24,6 +24,10 @@ client_ports = [os.getenv(f'SECONDARY_{i}_PORT') for i in range(1, secondaries_n
 lock = threading.Lock()
 messages = deque()
 next_id = 0
+
+nodes_status = ['healthy'] * secondaries_number
+health_monitoring = threading.Thread(target=monitor_nodes_status, args=(nodes_status,))
+health_monitoring.start()
 
 
 @app.route('/messages', methods=['POST'])
@@ -154,3 +158,10 @@ def flush():
         next_id = 0
 
     return 'ok'
+
+
+@app.route('/health', methods=['GET'])
+def check_health():
+    result = {f'secondary-{index + 1}': status for index, status in enumerate(nodes_status)}
+
+    return jsonify(result)
