@@ -11,6 +11,9 @@ services:
       PORT: "8080"
       SECONDARY_1_PORT: "8081"
       SECONDARY_2_PORT: "8082"
+      SECONDARIES_NUMBER: "2"
+      HEARTBEATS_NUMBER: "3"
+      HEARTBEATS_INTERVAL: "5"
   secondary-1:
     build: ./secondary
     ports: ["0.0.0.0:8081:8081"]
