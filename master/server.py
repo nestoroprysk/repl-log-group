@@ -1,5 +1,6 @@
 import os
 import threading
+import logging
 from typing import Union, Tuple
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor
@@ -12,27 +13,41 @@ from flask import Flask, jsonify, request
 try:
     from latch import CountDownLatch
     from health import monitor_nodes_status
+    from quorum import monitor_quorum
 except ImportError:
     from .latch import CountDownLatch
     from .health import monitor_nodes_status
+    from .quorum import monitor_quorum
+
+logging.basicConfig(level=logging.WARNING)
+logging.getLogger(__name__).setLevel(logging.DEBUG)
 
 app = Flask(__name__)
 
 secondaries_number = int(os.getenv('SECONDARIES_NUMBER'))
-client_ports = [os.getenv(f'SECONDARY_{i}_PORT') for i in range(1, secondaries_number + 1)]
+secondary_ports = [os.getenv(f'SECONDARY_{i}_PORT') for i in range(1, secondaries_number + 1)]
 
 lock = threading.Lock()
 messages = deque()
 next_id = 0
 
+status_lock = threading.Lock()
 nodes_status = ['healthy'] * secondaries_number
-health_monitoring = threading.Thread(target=monitor_nodes_status, args=(nodes_status,))
+health_monitoring = threading.Thread(target=monitor_nodes_status, args=(nodes_status, status_lock))
 health_monitoring.start()
+
+system_has_quorum = {'value': True}
+quorum_monitoring = threading.Thread(target=monitor_quorum, args=(nodes_status, system_has_quorum, status_lock))
+quorum_monitoring.start()
 
 
 @app.route('/messages', methods=['POST'])
 def add_message():
     global next_id
+    global system_has_quorum
+
+    if not system_has_quorum['value']:
+        return 'ERROR: >50% nodes are unavailable (no quorum)', 500
 
     with lock:
         message = request.json.get('message')
@@ -47,7 +62,7 @@ def add_message():
         messages.append(message)
 
     latch = CountDownLatch(
-        requests_count=len(client_ports),
+        requests_count=len(secondary_ports),
         success_count=wait_count,
     )
 
@@ -55,7 +70,7 @@ def add_message():
 
     executor = ThreadPoolExecutor()
 
-    for index, port in enumerate(client_ports):
+    for index, port in enumerate(secondary_ports):
         conf = request.json.get(f'secondary-{index + 1}')
         if conf:
             delay = conf.get('delay', 0)

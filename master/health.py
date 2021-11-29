@@ -1,5 +1,7 @@
 import os
 import time
+import logging
+from threading import Lock
 
 import requests
 
@@ -7,6 +9,8 @@ secondaries_number = int(os.getenv('SECONDARIES_NUMBER'))
 heartbeats_number = int(os.getenv('HEARTBEATS_NUMBER'))
 heartbeats_interval = float(os.getenv('HEARTBEATS_INTERVAL'))
 client_ports = [os.getenv(f'SECONDARY_{i}_PORT') for i in range(1, secondaries_number + 1)]
+
+logger = logging.getLogger(__name__)
 
 
 def check_node_status(index: int, port: str) -> bool:
@@ -44,6 +48,9 @@ def check_health() -> dict:
             status = _get_status(is_healthy)
             statuses[index] = status
 
+        if statuses[index] == 'unhealthy':
+            logger.warning(f'secondary-{index + 1} is unavailable')
+
     return statuses
 
 
@@ -62,15 +69,17 @@ def _get_status(is_healthy: list) -> str:
         return 'unhealthy'
 
 
-def monitor_nodes_status(nodes_status: list):
+def monitor_nodes_status(nodes_status: list, lock: Lock):
     """
     Runs secondaries status monitoring
     :param nodes_status: list of secondary nodes statuses
+    :param lock: threading.Lock object
     """
     while True:
         time.sleep(heartbeats_interval)
 
-        statuses = check_health()
+        with lock:
+            statuses = check_health()
 
-        for node, status in statuses.items():
-            nodes_status[node] = status
+            for node, status in statuses.items():
+                nodes_status[node] = status
