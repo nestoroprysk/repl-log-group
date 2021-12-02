@@ -12,11 +12,11 @@ from flask import Flask, jsonify, request
 
 try:
     from latch import CountDownLatch
-    from health import monitor_nodes_status
+    from health import NodesStatus, monitor_nodes_status
     from quorum import monitor_quorum
 except ImportError:
     from .latch import CountDownLatch
-    from .health import monitor_nodes_status
+    from .health import NodesStatus, monitor_nodes_status
     from .quorum import monitor_quorum
 
 logging.basicConfig(level=logging.WARNING)
@@ -32,7 +32,7 @@ messages = deque()
 next_id = 0
 
 status_lock = threading.Lock()
-nodes_status = ['healthy'] * secondaries_number
+nodes_status = NodesStatus(secondaries_number)
 health_monitoring = threading.Thread(target=monitor_nodes_status, args=(nodes_status, status_lock))
 health_monitoring.start()
 
@@ -114,7 +114,14 @@ def replicate_message(
     """
     url = f'http://secondary-{index + 1}:{port}/messages'
     try:
-        response = _send_request(url, data)
+        with status_lock:
+            status = nodes_status[index]
+
+        if status == 'healthy':
+            response = requests.post(url, json=data)
+        else:
+            response = _send_request(url, data)
+
         response.raise_for_status()
 
         if response.status_code == 200:
