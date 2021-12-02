@@ -14,6 +14,7 @@ services:
       SECONDARIES_NUMBER: "2"
       HEARTBEATS_NUMBER: "3"
       HEARTBEATS_INTERVAL: "5"
+      QUORUM_INTERVAL: "3"
   secondary-1:
     build: ./secondary
     ports: ["0.0.0.0:8081:8081"]
