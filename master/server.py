@@ -114,13 +114,7 @@ def replicate_message(
     """
     url = f'http://secondary-{index + 1}:{port}/messages'
     try:
-        with status_lock:
-            status = nodes_status[index]
-
-        if status == 'healthy':
-            response = requests.post(url, json=data)
-        else:
-            response = _send_request(url, data)
+        response = _send_request(url, data)
 
         response.raise_for_status()
 
